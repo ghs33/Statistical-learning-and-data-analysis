@@ -1,0 +1,258 @@
+---
+title: "lab_1"
+author: "Gil Shiloh and Dean  Teslter"
+date: "30 3 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse) ; library(ggplot2); library(dplyr) ; library(scales) ; library(zoo);library(plotly);library(factoextra);
+library(FactoMineR);library(readxl);library(ggrepel)
+```
+
+## R Markdown
+
+
+### שאלה 1
+
+# גרף 1
+
+גרף 1 מתאר לנו את מספר התאונות במטרופולין של חיפה בחודשים בשנים 2013 - 2019. בנוסף קיים לנו קו ממוצע שמראה לנו את מספר התאונות הממוצע בחודש בתקופת השנים.
+
+# א
+
+הגרף מנסה לענות לנו על השאלה: האם יש מגמה וקשר כלשהו בין חודשים ותקופות עוקבות במטרופולין של חיפה. 
+
+# ב
+
+במבט על הגרף קשה להגיד להגיד שהגרף עונה על השאלה שכן אין מגמה ברורה בגרף וישנם קפיצות רבות בין החודשים. בנוסף נראה שברוב התקופות מספר התאונות קרוב לממוצע.
+
+# ג 
+
+הגרף משאיר הרבה שאלות פתוחות שמצריכות להיכנס לתוך הנתונים על מנת למצוא את התשובות שלהן.. לדוגמה הגרף רק מציג את מספר התאונות בזמן שבתקופה זאת האוכלוסיה גדלה, כלומר לא מופיע יחס התאונות לאזרחים. האם יש סיבה לכך שבשנה הראשונה גרף ישנם קפיצות גדולות.האם יש חודשים שבהם היו תאונות גדולות עם הרוגים או מספר גבוה של פצועים קשה לעומת חודשים עם תאונות קלות יותר.
+
+# ד
+
+לדעתינו היה אפשר להציג בגרף את מספר התאונות שבהם היו מעורבים פצועים קשה והרוגים ובנוסף את שאר התאונות על מנת להראות את חומרת התאונות. בנוסף היה אפשר להוסיף קו רגרסיה על מנת שנוכל לראות ביתר קלות האם קיימת מגמה של מספר התאונות.
+
+# גרף 2
+
+גרף זה מציג לנו את מספר התאונות במטרופולין חיפה שבהן יש פציעות בהשוואה בין מבוגרים לילדים ומציג לנו את מגזרי הערים במטרופולין. בנוסף יש לנו מעין קו רגרסיה שמציג לנו את הקשר בין תאונות של מבוגרים וצעירים.
+
+# א 
+
+הגרף מנסה לענות לנו על השאלה האם יש קשר בין מספר התאונות בהקשר של פציעות של צעירים ומבוגרים במטרופולין חיפה ובנוסף האם יש קשר בין מגזר לבין מספר התאונות.
+
+# ב 
+
+נראה שהגרף עונה בצורה טובה על השאלה. נראה שיש קשר בין מספר התאונות של מבוגרים וצעירים. בנוסף בצורה ברורה יותר ניתן לראות שישנה מגמה ברורה שבא בערבים מהמגזר הערבי מספר התאונות בקרב צעירים הוא גבוה מאוד, לעומת ערים יהודיות ומעורבות שבהן ישנו קשר די קבוע בין מספר התאונות שבהם מעורבים צעירים לעומת מבוגרים.
+
+# ג
+
+השאלה שעולה לנו מדוע דווקא ביישובים ערביים יש מעורבות גדולה יותר של צעירים. ניתן לשער שאחוז הילדים ביישובים אלו הוא גדול יותר מאשר ביישובים יהודיים ולכן עקב כך שאחוזם באוכלוסיה הוא גדול יותר כך גם מספר התאונות בקרבם הוא גדול יותר. אך לא בהכרח ויתכן שישנם סיבות נוספות ואחרות.
+
+# ד
+
+לכן על מנת לשפר את הגרף היינו מציעים להוסיף את אחוז הצעירים והמבוגרים בקרב היישובים על מנת לקבל השוואה טובה יותר, במקום רק לקבל את מספר התאונות כנתון.
+
+```{r, echo=FALSE}
+load("C:/Users/97254/OneDrive/שולחן העבודה/stat_lab/accidents_2013_2019.rdata")
+```
+
+### שאלה 2
+
+# גרף - 1
+
+```{r, echo=FALSE}
+accidents[accidents == "ינואר"] <- "1"
+accidents[accidents == "פברואר"] <- "2"
+accidents[accidents == "מרס"] <- "3"
+accidents[accidents == "אפריל"] <- "4"
+accidents[accidents == "מאי"] <- "5"
+accidents[accidents == "יולי"] <- "7"
+accidents[accidents == "יוני"] <- "6"
+accidents[accidents == "אוגוסט"] <- "8"
+accidents[accidents == "ספטמבר"] <- "9"
+accidents[accidents == "אוקטובר"] <- "10"
+accidents[accidents == "נובמבר"] <- "11"
+accidents[accidents == "דצמבר"] <- "12"
+accidents$Month <- as.numeric(accidents$Month)
+df_2 <- accidents %>% group_by(Year,Month) %>% summarise(Accidents = n())
+df_2 <- arrange(df_2, Year, Month)
+df_2$Date <- as.yearmon(paste(df_2$Year, df_2$Month), "%Y %m")
+```
+
+```{r, echo=FALSE}
+blue <- df_2 %>% filter(Month == "1")
+
+ggplot(df_2, aes(x=Date, y=Accidents))+
+  geom_line(size=0.4, alpha=0.9, linetype=1) +
+  geom_point(size=0.7) +
+  geom_hline(aes(yintercept = mean(Accidents)), color="red", alpha=1/4)+  geom_vline(xintercept=blue$Date, linetype="dashed", color = "blue") +
+ geom_text(aes(label=ifelse(df_2$Date == "2016-10-15","Oct 2016",'')),nudge_y = -15, color= "black")+ ggtitle("Accidents by month in Israel") +labs( x = "Month")+theme( panel.border = element_rect(colour = "black", fill=NA, size=1))
+```
+
+# גרף - 2
+
+```{r, echo=FALSE}
+minor_adult <- accidents[c("Injured_0_19","Injured_20_64","Injured_65_plus","Town_Name")]
+minor_adult$Adult <- minor_adult$Injured_20_64 + minor_adult$Injured_65_plus
+minor_adult <- minor_adult[c("Injured_0_19","Adult","Town_Name")]
+colnames(minor_adult) <- c("Minor","Adult","Town_Name")
+minor_adult$Adult <- minor_adult$Adult/7
+minor_adult$Minor <- minor_adult$Minor/7
+df_3 <- aggregate(.~Town_Name, minor_adult, FUN=sum)
+df_3 <- df_3[rowSums(df_3 > 15) == ncol(df_3), ]
+
+```
+
+```{r, echo=FALSE}
+before_merge <- read_excel("C:/Users/97254/OneDrive/שולחן העבודה/stat_lab/bycode2020.xlsx")
+colnames(before_merge) <- c("Town_Name","Religion")
+df_to_graph <- merge(df_3, before_merge, by = "Town_Name")  
+df_to_graph$Religion[df_to_graph$Religion == "יהודי"] <- "Jewish"
+df_to_graph$Religion[df_to_graph$Religion == "לא יהודי"] <- "Arab"
+df_to_graph$Religion[df_to_graph$Religion == "ישוב מעורב"] <- "Mixed"
+df_to_graph <- drop_na(df_to_graph)
+line <- sum(df_to_graph$Minor)/sum(df_to_graph$Adult)
+```
+
+```{r, echo=FALSE}
+ggplot(df_to_graph,aes(x=Adult, y=Minor, label = Town_Name)) + geom_point(aes(color = Religion), size = 4, alpha = 0.9) + ggtitle("Total accident-related injuries in town by age (2013-2019), yearly rate")+ geom_text_repel(aes(Adult, Minor, label = Town_Name), size = 3) +geom_abline(slope=line)
+
+```
+
+### שאלה 3
+
+```{r, echo=FALSE}
+by_days <- accidents %>% group_by(Day_Of_Week) %>% summarise(amount = n())
+by_days <- drop_na(by_days)
+by_days$Day_Of_Week <- factor(by_days$Day_Of_Week,levels = c("ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"))
+
+days <- by_days %>% 
+    drop_na() %>% 
+    ggplot(aes(x = Day_Of_Week, y = amount))
+days + geom_bar(stat = "identity") +
+    xlab("Day") +
+    ylab("Number of accidents")
+```
+
+מהגרף ניתן לראות שלאורך השבוע מספר התאונות דומה חוץ מימי שישי ושבת. אנו מניחים שהבדל זה נובע מכמות פחותה של מכוניות שנמצאות על הכביש עקב אנשים דתיים אשר בימי שישי מרגע כניסת השבת הם אינם נוסעים במכונית וכך יש פחות מכוניות על הכביש וכדומה בימי שבת לאורך היום.
+
+```{r, echo=FALSE}
+by_road <- accidents %>% group_by(Road_Type, Severity) %>% summarise(amount = n())
+plot_roads <- by_road %>% 
+    drop_na() %>% 
+    ggplot(aes(x = Road_Type, y = amount, fill = Severity)) 
+
+plot_roads + geom_bar(stat = "identity") +
+    xlab("Road Type") +
+    ylab("Number of accidents") + theme(axis.text.x=element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+בניתוח זה בחרנו לבדוק את חומרת התאונות ואת כמות התאונות אל מול סוג הדרך שבה קרתה התאונה. 
+ניתן לראות כי רוב התאונות קורות בדרכים עירוניות וכן גם יותר תאונות קשות בהתאם. בנוסף ניתן להבחין בהבדל בין צמתים/לא צמתים - ניתן לראות שקורה יותר תאונות לא בצמתים והתאונות יותר חמורות בדרכים אשר אינם צמתים.
+
+```{r, echo=FALSE}
+df_3 <- accidents %>% select(Day_Night,Injured_0_19, Injured_20_64, Injured_65_plus)
+df_3 <- aggregate(cbind(Injured_0_19, Injured_20_64, Injured_65_plus)~Day_Night, df_3, sum)
+df_3 <- data.frame(group = c("day", "night"),
+                 under19 = df_3$Injured_0_19,
+                 over19_under65 = df_3$Injured_20_64,
+                 over65 = df_3$Injured_65_plus)
+df_3 <- df_3 %>% gather(key = age, value = Value, under19:over65)
+df_3
+
+
+ggplot(df_3, aes(fill=group, x=age, y=Value)) + 
+    geom_bar(position="stack", stat="identity")
+
+
+ggplot(df_3, aes(x=age, y=Value, fill = group)) +
+  geom_bar(position = "fill", stat = "identity",color='black',width=0.9) +
+  scale_y_continuous(labels = scales::percent)
+```
+
+מהגרפים הללו ניתן לראות כמה דברים שאף מפתיעים. ציפינו לראות שבקבוצת הגיל של 19 - 65 יהיו הכי הרבה תאונות. אך אנחנו יכולים לראות מהגרפים את מספר ואחוז התאונות של קבוצות הגיל ביום לעומת הלילה. נתייחס לכל קבוצה בנפרד. בקבוצת הגיל של 65 פלוס אין הפתעה שלקבוצה זאת הכי מעט תאונות שכן הם נמצאים מעט יחסית על הכבישים ובדרכים. בנוסף ניתן לראות שבקרב התאונות של גיל 65 פלוס רוב התאונות קורות ביום, ושוב נתון זה אינו מפתיע כי לרוב מבוגרים אינם נמצאים בשעות הלילה על הכביש וברחובות. בקבוצת הגיל של מתחת ל19, שהיא קבוצת הגיל במקום השני מבחינת מספר התאונות הופתענו מאוד לגלות את אחוז התאונות שבהם מעורבים קבוצת הגיל הזאת בשעות הלילה ותאונות הלילה מהוות כ40 אחוז מסך התאונות של קבוצת גיל זאת. עקב כך שלרוב חברי קבוצת גיל זאת אין רישיון נהיגה,  לא היינו מצפים לראות אותם מעורבים בתאונות רבות בלילה. חברי קבוצת גיל זאת מעורבים בתאונות לילה באחוז גבוה יותר מאשר כל שאר הקבוצות, נתון מפתיע. לבסוף יש לנו את קבוצת הגילאים של 19-65 ובאופן לא מפתיע לקבוצה זאת מספר התאונות הגדול ביותר שכן הם מונים את מספר האנשים הגדול ביותר ובנוסף קבוצת גילאים זאת נמצאת הכי הרבה על הכבישים. בקבוצת גילאים זאת אחוז התאונות בלילה הוא כמעט 40 אחוז ונתון זה אינו מפתיע שכן ישנן נסיעות רבות בשעות הלילה.
+
+### שאלה 4
+
+# 1
+
+```{r, echo=FALSE}
+by_month <- accidents %>% group_by(Month) %>% summarise(n = n())
+plot_mon <- by_month %>% 
+    drop_na() %>% 
+    ggplot(aes(x = factor(Month), y = n))
+plot_mon + geom_bar(stat = "identity") + coord_cartesian(ylim = c(2000, 2800)) + 
+    xlab("Month") +
+    ylab("Number of accidents")
+```
+
+
+```{r, echo=FALSE}
+real <- by_month %>% drop_na(Month)
+numbers <- c(1:12)
+sim_data <- real
+sim_data$sim_num <- 1
+for (i in 2:20) {
+  data_sim <- real
+  data_sim$n = runif(dim(real)[1],min(real$n), max(real$n))
+  data_sim$sim_num <- i
+  sim_data <- rbind(sim_data, data_sim)
+}
+sim_data$sim_num <- factor(sim_data$sim_num)
+plot_4 <- ggplot(sim_data) +geom_bar(aes(x=Month, y=n), stat="identity",fill  = "#FF6666") + scale_x_continuous("month", breaks=numbers)+ scale_y_continuous('total accidents')+ coord_cartesian(ylim = c(2000, 2800))  + ggtitle("accidents by month")  +facet_wrap(~sim_num) +theme(axis.text.x=element_text( hjust=,size = 6))
+plot_4
+```
+
+מהגרפים לא ניתן להסיק שהשערת האפס נכונה, כלומר שהתפלגות הנתונים אינה מגיעה מהתפלגות רנדומלית - יוניפורמית. הגרף הראשון מייצג את התפלגות הנתונים, ניתן להבחין בקו מגמה יורד בחודשים האחרונים שמייצגים את חודשי החורף ויש תלות בכך ולכן אנו מסיקים כי מהגרפים לא ניתן לקבוע שהנתונים הגיעו מהתפלגות יוניפורמית.
+
+### שאלה 5
+
+```{r, echo=FALSE}
+city_accidents <- accidents %>%                       select(Town_Name,Death,Injured_Severe,Injured_Light,Injured_0_19,Injured_20_64,Injured_65_plus)
+df_4 <- city_accidents %>% group_by(Town_Name) %>% summarise(n=n()) %>% filter(n>150) %>% drop_na(Town_Name)
+
+
+df_4 <- accidents[accidents$Town_Name %in% df_4$Town_Name,]
+df_4 <- df_4 %>%select(Town_Name,Death,Injured_Severe,Injured_Light,Injured_0_19,Injured_20_64,Injured_65_plus)
+
+df_4 <- df_4 %>% 
+        group_by(Town_Name) %>% 
+        summarise(across(everything(), sum))
+
+df_4 <- df_4 %>% remove_rownames %>% column_to_rownames(var="Town_Name")
+```
+
+```{r, echo=FALSE}
+prin_comp <- prcomp(df_4, rank. = 3)
+summary(prin_comp)
+```
+
+מהטבלה אנו רואים שהפיסי הראשון הוא הרלוונטי ביותר לנו והוא מכיל את החלק הגדול ביותר שלנו - 0.994.
+
+```{r, echo=FALSE}
+components <- prin_comp[["x"]]
+components <- data.frame(components)
+components$PC2 <- -components$PC2
+components$PC3 <- -components$PC3
+components = cbind(components, rownames(df_4))
+
+
+plot_pca <- plot_ly(components, x = ~PC1, y = ~PC2, z = ~PC3, color = ~df_4$Injured_Light, colors = c('#636EFA','#EF553B','#00CC96') ) %>%
+  add_markers(size = 12)%>%
+  add_trace(text= rownames(df_4))
+
+
+plot_pca <- plot_pca %>%
+  layout(
+    title = '3D PCA plot',
+    scene = list(bgcolor = "#e5ecf6")
+)
+
+plot_pca
+```
+
+מנתוני הגרף התלת מימדי אנחנו יכולים לראות שיש לנו קבוצה גדולה של ערים שהם מקובצים. אם נסתכל על ערים אלה נוכל לראות שאלו יישובים וערים קטנות יחסית. לעומת זאת יש לנו את תל אביב,באר שבע, חיפה וירושלים שערים אלו נמצאים רחוק מההתקבצות של השאר. ניתן לשאר שהערים הגדולות מתקבצות רחוק בגלל שלהן יש את מספר הפצועים וההרוגים הגדול ביותר ואלו הם שמשפיעים על הפיסיאי.
+```
