@@ -1,0 +1,386 @@
+---
+title: "stat_ex_2"
+author: "Gil Shiloh - 315440230, Dean Tesler - 316167105"
+date: "26 4 2022"
+output: html_document
+---
+
+# lab 2
+
+```{r, error=FALSE,warning=FALSE,message=FALSE}
+# packages
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(tidyr)
+library(tidyverse)
+library(psych)
+library(zoo)
+library(ggrepel)
+library(mvtnorm)
+library(gridExtra)
+require(stats)
+require(dendextend)
+library(resample)
+library(shiny)
+```
+
+# 1.1
+
+## 1
+##### a function that samples the first 10 coordinates of each µj
+
+```{r}
+set.seed(123)
+
+mu_i <- function(){mu_i <- rnorm(n = 10)
+  return(mu_i)}
+```
+
+## 2
+##### a function that samples a datasets of dimension 90 × p
+
+```{r}
+mu_sim <- function(mu_1, mu_2, mu_3, p, sig){
+  res <-as.data.frame(matrix(0, 90, p))
+  for (i in seq(1:90)){
+    if (i < 21){
+      res[i,] = rmvnorm(n=1, mean = append(mu_1, rep(0, p-10)), sigma = diag(rep(sig, p)))}
+    if((i >20) &(i < 51)){
+      res[i,] = rmvnorm(n=1, mean = append(mu_2, rep(0, p-10)), sigma = diag(rep(sig, p)))}
+    if (i > 50){
+      res[i,] = rmvnorm(n=1, mean = append(mu_3, rep(0, p-10)), sigma = diag(rep(sig, p)))}}
+  return(as.matrix(res))}
+```
+
+## 3
+##### a function that computes the accuracy of a given clustering result  based on the known components.
+
+```{r}
+# from moodle tirgul 4 - pages 11-12 
+accuracy <- function(sample_mnist, mnist_kmeans){
+  Mode <- function(x){
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]}
+  
+true_label <- unname(unlist((sample_mnist)))
+cluster <- do.call(cbind, list(by(true_label, mnist_kmeans[["cluster"]], Mode)))
+cluster <- cbind(rownames(cluster), cluster)
+colnames(cluster) <- c("clus_center","cluster_label")
+acc_table <- data.frame(true_label = true_label, clus_center = mnist_kmeans[["cluster"]])
+acc_table <- merge(x = acc_table, y = cluster)
+return(mean(acc_table$true_label == acc_table$cluster_label))}
+```
+
+## 4
+##### a wrapper for the K-means algorithm that inputs a data-set and the set of true-labels, and outputs the accuracy and the run-time.
+
+```{r}
+pred <- function(data,true_labels){
+  b_time <- Sys.time()
+  kmeans_res <- kmeans(data, 3)
+  accuracy <- accuracy(true_labels, kmeans_res)
+  t_time <- Sys.time() - b_time
+  return(c(accuracy, t_time))}
+```
+
+# 1.2
+
+## 1
+##### compute the average accuracy and the standard-error
+
+```{r}
+acc_fun <- data.frame(p_dim = NA, sigma = NA, ave_acc = NA, std_dev = NA)
+data_time <- data.frame(p_dim = NA, sigma = NA, time = NA)
+
+for (i in c(10, 20,50)){
+  for (j in c(1,9,25,49)){
+    temp = c()
+    for (k in seq(80)){
+      data <- mu_sim(mu_i(), mu_i(), mu_i(), i, j)
+      temp <- append(temp,pred(data, rep(c(1,2,3), times = c(20,30,40))))
+      data_time <- rbind(data_time,c(i, j, temp[2]))}
+    acc_fun <- rbind(acc_fun,c(i, j,mean(temp[1]), sd(temp)/sqrt(80)))}}
+
+acc_fun <- na.omit(acc_fun)
+rownames(acc_fun) <- NULL
+acc_fun
+```
+
+```{r}
+ggplot(acc_fun, aes(x=sigma, y=ave_acc, colour = -p_dim))+
+  facet_wrap(vars(p_dim)) +
+  geom_line()+ ggtitle("Figure 1 - Average accuracy rate for p dimensions and sigma") +labs( x = "sigma", y = "Average accuracy rate")
+```
+
+``` {r}
+ggplot(acc_fun, aes(x=sigma, y=std_dev
+, colour = -p_dim))+
+  facet_wrap(vars(p_dim)) +
+  geom_line()+ ggtitle("Figure 2 - Standard error rate for p dimensions and sigma") +labs( x = "sigma", y = "Standard error rate")
+```
+
+## 2
+##### a figure describing run-time
+
+```{r}
+data_time <- na.omit(data_time)
+ggplot(data_time, aes(x=sigma, y=time, colour = -p_dim))+
+  facet_wrap(vars(p_dim)) +
+  geom_line()+ ggtitle("Figure 3 - Time rate for p dimensions and sigma") +labs( x = "sigma", y = "Time rate")
+```
+
+## 3
+##### Briefly, discuss the effect of increasing p (dim) and increasing sigma^2 on accuracy and run-time.
+
+for accuracy:
+from figure 1 we can see that where the sigma is the lowest (1) the accuracy is increasing as the p dimensions is increasing. Further more we can see that Where the variance increasing we can see at all the dimensions that the accuracy of the prediction is decreasing.
+From figure 2 we can understand that the p dimension is not having a big impact on the standard error rate, so the sigma is the main focus here and we can see that as the sigma increasing the standard error rate is decreasing.
+
+From figure 3 (rantime) we can see that when the variance is low and low dimensions the run time is the longest which is because of the stopping criterion of the K-means algorithm, and as the p dimension is increasing and the variance is increasing the runtime is getting shorter since its reaches the stopping criterion faster.
+
+# 2
+
+In this part we will explore how socio-economical similarity between cities relates to patterns in the spread
+and effect of the corona-virus. We will use the demographic dataset csb demographics.txt that is used to
+create the socio-economic ranking by the Israeli Statistical Bureau (ISB); each row is a town or “moatza
+mekomit”, and the variables represent some demographic property. We will compare the demographics to
+the Covid-19 statistics data-set by town found in covid towns.csv 1
+. Both are on Moodle. For the Covid19 statistics, we processed the file to produce the monthly number of verified cases, recovered, deaths and diagnostic tests in each town.
+
+## 1
+##### Randomly choose a set of 20 cities described in the ISB (demographics) data sets. Identify these cities in the corona-virus data-sets.
+
+```{r}
+data_demo <- read.delim("cbs_demographics.txt") # loading the data
+rownames(data_demo) <- data_demo$village
+data_covid <- read.csv("covid_towns.csv",encoding="UTF-8")
+code_data <- read.csv("code_name_mapping.csv", encoding="UTF-8")
+colnames(code_data)<- c("City_Code", "City_Name")
+data_covid <- merge(code_data, data_covid, by = "City_Code") %>% select(-c(City_Name.y, City_Code, X))
+colnames(data_covid)[1] <- "City_Name"
+rownames(data_covid) <- data_covid$village
+```
+
+```{r}
+set.seed(123)
+# Sample 20 random rows
+df_demogra_sample <- sample_n(data_demo[data_demo$village %in% data_covid$City_Name,], 20,)
+# Identify and save these cities in the corona-virus data-sets
+df_sample <- data_covid[data_covid$City_Name %in% df_demogra_sample$village,]
+print(df_demogra_sample)
+```
+
+## 2
+##### Construct a hierarchical tree for the covid data
+
+```{r}
+# Normalize the data by the size of the population 
+df_scale <- df_sample
+rownames(df_scale) <- df_scale$City_Name
+df_scale[c(2:100)] <- lapply(df_scale[c(2:100)], function(x) if(is.numeric(x)) c(x/df_demogra_sample$population) else (x))
+df_scale <- df_scale %>% select(-City_Name) %>% select(-c(101:105))
+
+# by scale
+demogra_scale <- df_demogra_sample
+demogra_scale[c(2:15)] <- lapply(demogra_scale[c(2:15)], function(x) c(scale(x)))
+demogra_scale <- demogra_scale %>% select(-village)
+```
+
+```{r}
+data_covid_samp_dist <- dist(df_scale, method ="canberra")
+hir_clust_tree <- hclust(data_covid_samp_dist, method = "complete")
+covid_dend <- as.dendrogram(hir_clust_tree)
+covid_dend <- covid_dend %>% set("labels_cex", 0.5) %>% set("branches_k_color", value = c(3,4,1), k = 3) %>% set("labels_col", value = c(3,4,1), k = 3)
+plot(covid_dend, main = "Twenty Random Cities - Covid-19 Dendogram")
+```
+
+## 3
+##### Construct a hierarchical tree for the demographic data.
+
+```{r}
+data_demo_samp_dist <- dist(demogra_scale, method ="canberra")
+hir_clust_tree <- hclust(data_demo_samp_dist, method = "complete")
+demo_dend <- as.dendrogram(hir_clust_tree)
+demo_dend <- demo_dend %>% set("labels_cex", 0.5) %>% set("branches_k_color", value = c(3,4,1), k = 3) %>% set("labels_col", value = c(3,4,1), k = 3)
+plot(demo_dend, main = "Twenty random cities - Demographics Dendogram")
+```
+
+## 4
+##### Compare the two hierarchies. Comment on similarities and differences.
+
+```{r}
+plot(demo_dend, main = "Twenty random cities - Demographics Dendogram")
+plot(covid_dend, main = "Twenty random cities - Covid-19 Dendogram")
+```
+
+```{r}
+dl <- dendlist("covid dendrogram" = covid_dend, "demographics dendrogram" = demo_dend)
+tanglegram(dl, sort = TRUE, common_subtrees_color_branches = TRUE)
+```
+
+by using a tanglegram plot we are getting comparison between 2 dendorograms with the same labes connected by lines.
+similarities between the two hierarchies:
+the main similarity is that both of them are with the same names
+Differences:
+As we can see each graph gives a different groups of cities, the sub-tree are different and the covid-19 dendorogram is more balanced compared to the demographics dendorogram.
+
+## 5
+##### Choose a similarity score for the two trees. You can base your score on one of the scores implemented in the dendextend package, including Baker’s Gamma, the cophenetic correlation or the Fowlkes-Mallows (Bk) index.
+
+```{r}
+print(paste('The Baker Index Score for the dendograms:',cor_bakers_gamma(demo_dend, covid_dend)))
+```
+
+Baker's Gamma (see reference) is a measure of accosiation (similarity) between two trees of heirarchical clustering (dendrograms).
+It is calculated by taking two items, and see what is the heighst possible level of k (number of cluster groups created when cutting the tree) for which the two item still belongs to the same tree. That k is returned, and the same is done for these two items for the second tree. There are n over 2 combinations of such pairs of items from the items in the tree, and all of these numbers are calculated for each of the two trees. Then, these two sets of numbers (a set for the items in each tree) are paired according to the pairs of items compared, and a spearman correlation is calculated.
+The value can range between -1 to 1. With near 0 values meaning that the two trees are not statistically similar. For exact p-value one should result to a permutation test. One such option will be to permute over the labels of one tree many times, and calculating the distriubtion under the null hypothesis (keeping the trees topologies constant).
+Notice that this measure is not affected by the height of a branch but only of its relative position compared with other branches.
+
+
+## 6
+##### Find a background distribution for this score, assuming the labels of the trees are completely unrelated.
+
+```{r}
+set.seed(23235)
+the_cor <- cor_bakers_gamma(demo_dend, demo_dend)
+the_cor2 <- cor_bakers_gamma(demo_dend, covid_dend)
+R <- 100
+cor_bakers_gamma_results <- numeric(R)
+dend_mixed <- demo_dend
+for(i in 1:R) {
+   dend_mixed <- sample.dendrogram(dend_mixed, replace = FALSE)
+   cor_bakers_gamma_results[i] <- cor_bakers_gamma(demo_dend, dend_mixed)
+}
+plot(density(cor_bakers_gamma_results),
+     main = "Baker's gamma distribution under H0",
+     xlim = c(-1,1))
+abline(v = 0, lty = 2)
+abline(v = the_cor, lty = 2, col = 2)
+abline(v = the_cor2, lty = 2, col = 4)
+legend("topleft", legend = c("cor", "cor2"), fill = c(2,4))
+round(sum(the_cor2 < cor_bakers_gamma_results)/ R, 4)
+title(sub = paste("One sided p-value:",
+                  sum(the_cor < cor_bakers_gamma_results)/ R
+                  ))
+```
+
+```{r}
+print(paste('The one sided p-value:',sum(the_cor < cor_bakers_gamma_results)/ R))
+```
+
+## 7
+##### Display the results as a histogram approximating the null-distribution scores.
+
+```{r}
+hist(cor_bakers_gamma_results,
+     main = "Baker gamma histogram under H0",xlim = c(-1,1),breaks=6)
+abline(v = the_cor2, lty = 2, col = 4)
+legend("topleft",inset = 0.005, legend = "original baker's index", col = 4, lty = 2,     box.lty = 0,xpd=T)
+round(sum(the_cor2 < cor_bakers_gamma_results)/ R, 4)
+title(sub = paste("One sided p-value:",  round(sum(the_cor2 < cor_bakers_gamma_results)/ R, 4)))
+```
+
+
+## 8
+##### Explain your results in light of the null hypothesis you were testing.
+
+Our null hypothesis was that the labels of the trees are completely unrelated. - H0: Baker Index = 0 | H1: Baker Index !=0
+
+As from the pervious section and the permutation test the p-value is less than 0.05 (0) thus we reject H0. From that we can understand that the hierarchical trees match statistically. And the correlation is slightly proving the results.
+
+
+# 3
+
+We coded KMEANS code from scratch without using the k_means library algorithm. Then using the 'shiny' app we made an app so we could see the clusters and iterations in a visualize and interactive way.
+
+```{r}
+gen_df <- read.delim("gtex.txt", skip = 2 ,row.names = c(1), header = TRUE)
+log_gtex <- log(as.matrix(gen_df[2:54]) + 1)
+sd_gtex <- as.data.frame(apply(log_gtex, 1, sd))
+sd_gtex <- sd_gtex %>% top_n(200)
+log_gtex <- as.data.frame(log_gtex[rownames(sd_gtex),])
+k_means_df <- log_gtex
+```
+
+```{r}
+distance <- function(a,b) sqrt(sum((a-b)^2))
+`%!in%` <- Negate(`%in%`)
+centers <- function(data, k){
+  data[sample(nrow(data), k),]
+}
+
+
+k_means = function (k_means_df, k, max_iter=100){
+  
+  df_cen <- centers(k_means_df, k)
+  k_means_df$cluster <- NA
+  k_means_df$error <- NA
+  col_remove <- c("cluster", "error")
+  wss <- c()
+  for(iter in 1:max_iter){
+    for (i in 1:nrow(k_means_df)){
+      y <- c()
+      for (j in 1:k){
+         y <- c(y, distance(k_means_df[colnames(k_means_df) %!in% col_remove][i,], df_cen[j,]))
+      }
+      k_means_df$cluster[i] = which(y == min(y))
+      k_means_df$error[i] = min(y)
+    }
+    df_2_c <- aggregate(. ~ cluster, k_means_df, mean)
+    df_2_c <- df_2_c[colnames(df_2_c) %!in% col_remove]
+        wss = c(wss, sum(k_means_df$error))
+                 
+    if(all(rowSums(df_2_c) == rowSums(df_cen))){
+      break
+    }
+    
+    df_cen <- df_2_c
+  }
+
+  return(list(df_cen, k_means_df, wss))
+
+}
+
+RUN <- k_means(log_gtex, 3, 10)
+wss <- RUN[[3]]
+final_df <- prcomp(x = k_means_df, center = T, scale. = T)
+final_df <- as.data.frame(final_df$x[,c(1,2)])
+```
+
+```{r}
+ui <- fluidPage(
+    titlePanel("K-means Gen App"),
+    sidebarLayout(
+        sidebarPanel(
+            sliderInput("clusters",
+                        "Number of clusters:",
+                        min = 2,
+                        max = 10,
+                        value = 5),
+            sliderInput("max_iter",
+                        "Number of iterations:",
+                        min = 1,
+                        max = 100,
+                        value = 10)
+        ),
+        mainPanel(
+           plotOutput("distPlot")
+        )
+    )
+)
+server <- function(input, output) {
+
+    output$distPlot <- renderPlot({
+
+        res <- k_means(k_means_df, input$clusters, input$max_iter)
+
+        clust <- res[[2]]
+        plot(x=final_df$PC1, y=final_df$PC2, col = as.factor(unlist(clust$cluster)), 
+             cex=1.3, pch = 1, xlab = "PCA 1", ylab= "PCA 2",
+             title(paste0("K Means Plot - Number of clusters: ",input$clusters),
+             cex.main = 2, col.main= "blue"))
+    })
+}
+shinyApp(ui = ui, server = server)
+```
