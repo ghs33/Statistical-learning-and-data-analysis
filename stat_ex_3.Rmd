@@ -1,0 +1,772 @@
+---
+title: "lab3"
+author: "Dean Tesler, Gil Shilo"
+date: "8/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(glmnet);library(reshape2);library(latex2exp);library(viridis);library(Rcpp);library(tidyverse);library(openxlsx);library(glue);library(KernSmooth);library(usefun);library(stringr);library(ggplot2);library(KernSmooth);library(stringr)
+```
+
+** Question 1 - Simulation
+
+* 1.1  Implementing Kernel Regression
+
+* 1.1.1
+
+```{r}
+sample_f = function( n = 1, use_x= c(), lambda , sigma2 = 0.3){
+  if (n == 0){
+    return(NA)
+    }
+  if (length(use_x) > 0) {
+    x_by_y <-  cbind(use_x, sapply(use_x, function(x)sin(lambda*x) + 0.3*x^2 + ((x - 0.4)/3)^3 + rnorm(1, 0, sigma2)))
+    colnames(x_by_y) <- c("x_value", "y_value")
+    return(x_by_y)
+    }
+  sample_f(n = n,use_x = runif(n = n,min = -2,max = 2),lambda = lambda,sigma2 = sigma2)
+}
+```
+
+* 1.1.2
+
+```{r}
+kernel_regression = function(train_x, train_y, h, test_x){
+    kernel_k <- (1/h*sqrt(2*pi)) * exp(-0.5*((train_x - test_x)/h)^2)
+    weight <- kernel_k/sum(kernel_k)
+    Y <- train_y %*% weight
+    return(list(Y = Y,weight = weight))}
+```
+
+* 1.1.3
+
+```{r}
+n <- 60
+lambda <- 1.5
+plot_data <- data.frame(sample_f(n=n,lambda=lambda))
+plot_data$band_0.5 <-  matrix(sapply(plot_data$x_value, function(x) kernel_regression(train_x = plot_data$x_value, train_y = plot_data$y_value, h = 0.5, test_x = x)$Y),ncol = 1)
+plot_data$band_1 <-  matrix(sapply(plot_data$x_value, function(x) kernel_regression(train_x = plot_data$x_value, train_y = plot_data$y_value, h = 1, test_x = x)$Y),ncol = 1)
+plot_data$band_3 <-  matrix(sapply(plot_data$x_value, function(x) kernel_regression(train_x = plot_data$x_value, train_y = plot_data$y_value, h = 3, test_x = x)$Y),ncol = 1)
+
+
+ggplot(data = plot_data, aes(x = x_value))  + geom_line(aes(y = band_0.5, color = "h= 0.5")) +  geom_line(aes(y = band_1, color = "h= 1")) + geom_line(aes(y = band_3, color = "h= 3"))+ labs(col = 'bandwidth')+
+  geom_point(aes(y = y_value, color = "Y")) +
+  geom_point(aes(y = band_0.5, color = "h= 0.5")) +
+  geom_point(aes(y = band_1, color = "h= 1")) +
+  geom_point(aes(y = band_3, color = "h= 3"))+ ggtitle("kernel regression prediction") + xlab("X_value") + ylab("Y_value") 
+
+
+```
+from the graph we can see that the smallest the 'h' is, it is closer to the real y value and fits it better. on the other hand we see that as 'h' is higher it gets more like a straight line, and that means it dosent have lots of 'noise'. 
+
+* 1.2 Regression errors for Kernel Regression
+
+* 1.2.1
+
+```{r}
+sample_run = function(sim_data){
+  for (h in seq(0.1,12.1,0.4)) {
+    run <-  matrix(sapply(sim_data$x_value, function(x) kernel_regression(train_x = sim_data$x_value,     train_y = sim_data$y_value, h = h, test_x = x)$Y))
+    colnames(run) <- paste0('h_',h)
+    sim_data <- cbind(sim_data,run)
+    }
+  return(sim_data)
+}
+
+sample_lambda1.5_n60 <- data.frame(sample_f(n = 60, lambda = 1.5))
+sample_lambda1.5_n60_run <- sample_run(sample_lambda1.5_n60)
+sample_lambda1.5_n300 <- data.frame(sample_f(n = 300, lambda = 1.5))
+sample_lambda1.5_n300_run <- sample_run(sample_lambda1.5_n300)
+
+sample_lambda5_n60 <- data.frame(sample_f(n = 60, lambda = 5))
+sample_lambda5_n60_run <- sample_run(sample_lambda5_n60)
+sample_lambda5_n300<- data.frame(sample_f(n = 300, lambda = 5))
+sample_lambda5_n300_run <- sample_run(sample_lambda5_n300)
+
+
+
+
+```
+
+
+
+```{r}
+ggplot(data = sample_lambda1.5_n60_run, aes(x = x_value))  + geom_line(aes(y =h_0.1 , color = "h= 0.1")) +  geom_line(aes(y = h_0.9, color = "h= 0.9")) + geom_line(aes(y = h_12.1, color = "h= 12.1"))+ labs(col = 'bandwidth')+
+  geom_point(aes(y = y_value, color = "Y")) +
+  geom_point(aes(y = h_0.1, color = "h= 0.1")) +
+  geom_point(aes(y = h_0.9, color = "h= 0.9")) +
+  geom_point(aes(y = h_12.1, color = "h= 12.1"))+ ggtitle("kernel regression prediction", subtitle = 'lambda =1,5, n=60') + xlab("X_value") + ylab("Y_value")
+
+ggplot(data = sample_lambda1.5_n300_run, aes(x = x_value))  + geom_line(aes(y =h_0.1 , color = "h= 0.1")) +  geom_line(aes(y = h_0.9, color = "h= 0.9")) + geom_line(aes(y = h_12.1, color = "h= 12.1"))+ labs(col = 'bandwidth')+
+  geom_point(aes(y = y_value, color = "Y")) +
+  geom_point(aes(y = h_0.1, color = "h= 0.1")) +
+  geom_point(aes(y = h_0.9, color = "h= 0.9")) +
+  geom_point(aes(y = h_12.1, color = "h= 12.1"))+ ggtitle("kernel regression prediction", subtitle = 'lambda =1,5, n=300') + xlab("X_value") + ylab("Y_value") 
+
+ggplot(data = sample_lambda5_n60_run, aes(x = x_value))  + geom_line(aes(y =h_0.1 , color = "h= 0.1")) +  geom_line(aes(y = h_0.9, color = "h= 0.9")) + geom_line(aes(y = h_12.1, color = "h= 12.1"))+ labs(col = 'bandwidth')+
+  geom_point(aes(y = y_value, color = "Y")) +
+  geom_point(aes(y = h_0.1, color = "h= 0.1")) +
+  geom_point(aes(y = h_0.9, color = "h= 0.9")) +
+  geom_point(aes(y = h_12.1, color = "h= 12.1"))+ ggtitle("kernel regression prediction", subtitle = 'lambda =5, n=60') + xlab("X_value") + ylab("Y_value")
+
+ggplot(data = sample_lambda5_n300_run, aes(x = x_value))  + geom_line(aes(y =h_0.1 , color = "h= 0.1")) +  geom_line(aes(y = h_0.9, color = "h= 0.9")) + geom_line(aes(y = h_12.1, color = "h= 12.1"))+ labs(col = 'bandwidth')+
+  geom_point(aes(y = y_value, color = "Y")) +
+  geom_point(aes(y = h_0.1, color = "h= 0.1")) +
+  geom_point(aes(y = h_0.9, color = "h= 0.9")) +
+  geom_point(aes(y = h_12.1, color = "h= 12.1"))+ ggtitle("kernel regression prediction", subtitle = 'lambda =5, n=300') + xlab("X_value") + ylab("Y_value")
+
+
+```
+we can say as we saw beofre, the lower 'h' value is it is closer to the y value. and we can see that as lambda is higher it is more cyclical.
+
+
+* 1.2.1 kernel regresion
+
+* a - err
+
+```{r}
+err_calculate <- function(data){
+  err <- c()
+  for (col in 3:33){
+    err <- c(err,mean((data[,col] - data[,2])^2))}
+  err <- data.frame(err)
+  err$h <- seq(0.1,12.1,0.4)
+  return(err)
+}
+
+err_lambda1.5_n60  <- err_calculate(sample_lambda1.5_n60_run) 
+err_lambda1.5_n300  <- err_calculate(sample_lambda1.5_n300_run) 
+err_lambda5_n60  <- err_calculate(sample_lambda5_n60_run) 
+err_lambda5_n300  <- err_calculate(sample_lambda5_n300_run) 
+
+type_lambda_n <- rep(c('lambda=1.5, n=60','lambda=5, n=60','lambda=1.5, n=300','lambda=5, n=300'),times = c(31,31,31,31))
+err_table <- rbind(err_lambda1.5_n60,err_lambda1.5_n300  ,err_lambda5_n60,err_lambda5_n300 )
+err_table <- cbind(type_lambda_n,err_table,rep('err',124))
+colnames(err_table) <- c('lambda_n','variable','h','variable_name')
+err_table
+```
+
+we used the formulas that we learnt in class. 
+
+* b Eop
+
+```{r}
+eop_calculate = function(data, n, sigma= 0.3){
+  for (h in seq(0.1,12.1,0.4)) {
+    tr_weight <-  as.data.frame(sum(diag(as.matrix(sapply(data$x_value, function(x) kernel_regression(train_x = data$x_value, train_y = data$y_value, h = h, test_x = x)$weight)))))
+    data <- cbind(data,tr_weight)}
+  eop <- c()
+  for (col in 3:33) {
+    eop <- c(eop, (2*sigma)/n*data[1,col])}
+  eop <- data.frame(eop)
+  eop$h <- seq(0.1,12.1,0.4)
+  return(eop)
+}
+
+eop_lambda1.5_n60 <- eop_calculate(sample_lambda1.5_n60, 60) 
+eop_lambda5_n60  <- eop_calculate(sample_lambda1.5_n300, 60) 
+eop_lambda1.5_n300  <- eop_calculate(sample_lambda5_n60, 300) 
+eop_lambda5_n300  <- eop_calculate(sample_lambda5_n300, 300) 
+
+
+
+eop_table <- rbind(eop_lambda1.5_n60,eop_lambda1.5_n300  ,eop_lambda5_n60,eop_lambda5_n300 )
+eop_table <- cbind(type_lambda_n,eop_table,rep('eop',124))
+colnames(eop_table) <- c('lambda_n','variable','h','variable_name')
+eop_table
+
+```
+
+sigma^2 is given to us. and w is the weigthed from the values of the diagonal matrix.
+
+* c - accuracy - 5 fold cross validation
+
+
+```{r}
+sort_func <- function(x, y) {
+  sort(c(setdiff(x, y),
+         setdiff(y, x)))
+}
+cross_func <- function(data,h, k = 5){
+  accuracy_vec <- c()
+  for (i in 1:k) {
+        test <- data[sample(length(data$x_value),length(data$x_value)/k),]
+        train <- data.frame(x_value = sort_func(test$x_value, data$x_value), y_value = sort_func(test$y_value, data$y_value))
+        y_hat <- sapply(test$x_value, function(x) kernel_regression(train_x = train$x_value,train_y = train$y_value,h = h,test_x = x)$Y)
+  accuracy_vec <- c(accuracy_vec, mean((y_hat - test$y_value)^2))} 
+  return(mean(accuracy_vec))
+}
+
+accuracy_func = function(data){
+  accuracy <- c()
+  for (h in seq(0.1,12.1,0.4)) {
+    accuracy_sample <- cross_func(data, h)
+    accuracy <- c(accuracy, accuracy_sample)}
+  accuracy <- data.frame(accuracy)
+  accuracy$h <- seq(0.1,12.1,0.4)
+  return(accuracy)
+}
+accuracy_lambda1.5_n60 <- accuracy_func(sample_lambda1.5_n60)
+accuracy_lambda1.5_n300 <- accuracy_func(sample_lambda1.5_n300)
+accuracy_lambda5_n60 <- accuracy_func(sample_lambda5_n60)
+accuracy_lambda5_n300  <- accuracy_func(sample_lambda5_n300)
+accuracy_table <- rbind(accuracy_lambda1.5_n60,accuracy_lambda1.5_n300,accuracy_lambda5_n60,accuracy_lambda5_n300 )
+accuracy_table <- cbind(type_lambda_n,accuracy_table,rep('accuracy',124))
+colnames(accuracy_table) <- c('lambda_n','variable','h','variable_name')
+accuracy_table
+
+```
+
+* d- EPEin estimation
+
+```{r}
+epe_in_func <- function(data, lambda){
+  epe <- c()
+    for (col in 3:33) {
+      epe_in <- c()
+      for (k in 1:100) {
+        new_values <- sample_f(n = length(data[,1]), data[,1], lambda =  lambda)[,2]
+        epe_in <- c(epe_in, mean((new_values - data[,col])^2))}
+      epe <- c(epe,mean(epe_in))}
+  epe <- data.frame(epe)
+  epe$h <- seq(0.1,12.1,0.4)
+  return(epe)
+}
+epe_in_lambda1.5_n60 <- epe_in_func(sample_lambda1.5_n60_run, 1.5)
+epe_in_lambda1.5_n300 <- epe_in_func(sample_lambda1.5_n300_run, 1.5)
+epe_in_lambda5_n60 <- epe_in_func(sample_lambda5_n60_run, 5)
+epe_in_lambda5_n300 <- epe_in_func(sample_lambda5_n300_run, 5)
+epe_in_table <- rbind(epe_in_lambda1.5_n60,epe_in_lambda1.5_n300,epe_in_lambda5_n60,epe_in_lambda5_n300)
+epe_in_table <- cbind(type_lambda_n,epe_in_table,rep('epe_in',124))
+colnames(epe_in_table) <- c('lambda_n','variable','h','variable_name')
+epe_in_table
+
+
+```
+
+* e - expected prediction error
+
+```{r}
+epe_func <- function(data, lambda){
+  epe <- c()
+    for (h in seq(0.1,12.1,0.4)) {
+      epes <- c()
+      for (k in 1:100) {
+        new_data <- sample_f(n = length(data[,1]), lambda =  lambda)
+        y_hat <- sapply(new_data[,1], function(x) kernel_regression(train_x = data[,1], train_y = data[,2], h = h, test_x = x)$Y)
+        epes <- c(epes, mean((y_hat - new_data[,2])^2))}
+      epe <- c(epe,mean(epes))
+      epes <- c()}
+  epe <- data.frame(epe)
+  epe$h <- seq(0.1,12.1,0.4)
+  return(epe)
+}
+
+epe_lambda1.5_n60 <- epe_func(sample_lambda1.5_n60, 1.5)
+epe_lambda1.5_n300 <- epe_func(sample_lambda1.5_n300, 1.5)
+epe_lambda5_n60 <- epe_func(sample_lambda5_n60, 5)
+epe_lambda5_n300 <- epe_func(sample_lambda5_n300, 5)
+epe_table <- rbind(epe_lambda1.5_n60,epe_lambda1.5_n300,epe_lambda5_n60,epe_lambda5_n300)
+epe_table <- cbind(type_lambda_n,epe_table,rep('epe',124))
+colnames(epe_table) <- c('lambda_n','variable','h','variable_name')
+epe_table
+```
+
+* ploting
+
+```{r}
+
+preper_plot_data <- rbind(err_table,eop_table,accuracy_table,epe_in_table,epe_table)
+
+data_lambda_is_1.5 <- preper_plot_data[preper_plot_data$lambda_n %in% c("lambda=1.5, n=60","lambda=1.5, n=300"),]
+data_lambda_is_1.5$n <- factor(data_lambda_is_1.5$lambda_n)
+ggplot(data_lambda_is_1.5,aes(x = h,y = variable)) + geom_line(aes(color = variable_name,linetype = variable_name, size = n)) + scale_size_manual(values = c("lambda=1.5, n=60" = 0.5,  "lambda=1.5, n=300" = 1)) + ggtitle("lambda = 1.5") 
+
+
+data_lambda_is_5 <- preper_plot_data[preper_plot_data$lambda_n %in% c("lambda=5, n=60","lambda=5, n=300"),]
+data_lambda_is_5$n <- factor(data_lambda_is_5$lambda_n)
+ggplot(data_lambda_is_5,aes(x = h,y = variable)) + geom_line(aes(color = variable_name,linetype = variable_name, size = n)) + scale_size_manual(values = c("lambda=5, n=60" = 0.5,  "lambda=5, n=300" = 1)) + ggtitle("lambda = 5") 
+
+
+
+```
+
+by looking at the graphs we can assume few things:
+as we have seen before, the lower the lambda is- the higher the accuracy is, and the err is higher. we can also see that for bigger n, the accuracy is higher as we could expect because it lowers the variance. 
+for higher lambda, epein are lower and are more smoother and has less noise.
+also err are are lower for higher lambda.
+for both lambdas the eop converges to 0 as h grows but for highr lambda it is faster. 
+
+
+* 1.2.2 - quadratic regression
+
+* a -err
+
+```{r}
+quadratic_reg_func <- function(data){
+  data$x_value_2 <- data[,1]^2
+  return(lm(y_value ~ x_value + x_value_2, data = data))
+}
+
+
+quadratic_reg_lambda1.5_n60 <- mean((quadratic_reg_func(sample_lambda1.5_n60)$fitted.values - sample_lambda1.5_n60[,2])^2)
+quadratic_reg_lambda1.5_n300 <- mean((quadratic_reg_func(sample_lambda1.5_n300)$fitted.values - sample_lambda1.5_n300[,2])^2)
+quadratic_reg_lambda5_n60 <- mean((quadratic_reg_func(sample_lambda5_n60)$fitted.values - sample_lambda5_n60[,2])^2)
+quadratic_reg_lambda5_n300 <- mean((quadratic_reg_func(sample_lambda5_n300)$fitted.values - sample_lambda5_n300[,2])^2)
+
+
+
+quadratic_err_table <- cbind(quadratic_reg_lambda1.5_n60,quadratic_reg_lambda1.5_n300,quadratic_reg_lambda5_n60,quadratic_reg_lambda5_n300)
+row.names(quadratic_err_table) <- ("err")
+knitr::kable(quadratic_err_table)
+```
+
+* b- eop
+
+```{r}
+
+eop_fun <- function(data){
+  mat_x <- as.matrix(cbind(1,data[,1],data[,1]^2))
+  mat_w <- mat_x %*% solve(t(mat_x) %*% mat_x) %*% t(mat_x)
+  trace_mat_w <- sum(diag(mat_w))
+  return(0.6/length(data[,1])*trace_mat_w)}
+
+eop_qua_lambda1.5_n60 <- eop_fun(sample_lambda1.5_n60)
+eop_qua_lambda5_n60 <- eop_fun(sample_lambda1.5_n300)
+eop_qua_lambda1.5_n300 <- eop_fun(sample_lambda5_n60)
+eop_qua_lambda5_n300 <- eop_fun(sample_lambda5_n300)
+eop_qua_table <- cbind(eop_qua_lambda1.5_n60,eop_qua_lambda1.5_n300,eop_qua_lambda5_n60,eop_qua_lambda5_n300)
+row.names(eop_qua_table) <- ("eop")
+knitr::kable(eop_qua_table)
+```
+
+* c -  accuracy- 5 fold cross validation 
+
+```{r}
+
+
+
+cross_func <- function(data,h, k = 5){
+  accuracy_rate <- c()
+  for (i in 1:k) {
+        test_set <- data[sample(length(data$x_value),length(data$x_value)/k),]
+        train_set <- data.frame(x.value = sort_func (test_set$x_value, data$x_value), y_value = sort_func (test_set$y_value,  data$y_value))
+        model <- lm(data[,2] ~ data[,1] + I(data[,1]^2))
+        beta <- as.vector(model$coefficients)
+        design <- as.matrix(cbind(1,test_set[,1], test_set[,1]^2))
+        pred <- as.vector(design %*% beta)
+  accuracy_rate <- c(accuracy_rate, mean((pred - test_set$y_value)^2))} 
+  return(mean(accuracy_rate))
+}
+accuracy_qua_lambda1.5_n60 <- cross_func((sample_lambda1.5_n60))
+accuracy_qua_lambda1.5_n300  <- cross_func((sample_lambda1.5_n300))
+accuracy_qua_lambda5_n60  <- cross_func((sample_lambda5_n60))
+accuracy_qua_lambda5_n300   <- cross_func((sample_lambda5_n300))
+accuracy_qua_table <- cbind(accuracy_qua_lambda1.5_n60,accuracy_qua_lambda1.5_n300,accuracy_qua_lambda5_n60,accuracy_qua_lambda5_n300)
+row.names(accuracy_qua_table) <- ("accuracy")
+knitr::kable(accuracy_qua_table)
+```
+* d- EPE in
+
+```{r}
+epe_in_func  <- function(data, lambda){
+  y_hat <- quadratic_reg_func(data)$fitted.values
+  epe_in <- c()
+      for (k in 1:100) {
+        new_values <- sample_f(n = length(data[,1]), data[,1], lambda =  lambda)[,2]
+        epe_in <- c(epe_in, mean((new_values - y_hat)^2))}
+  return(mean(epe_in))
+}
+
+epe_in_qua_lambda1.5_n60 <- epe_in_func (sample_lambda1.5_n60,1.5)
+epe_in_qua_lambda1.5_n300 <- epe_in_func (sample_lambda1.5_n300,1.5)
+epe_in_qua_lambda5_n60 <- epe_in_func (sample_lambda5_n60,5)
+epe_in_qua_lambda5_n300 <- epe_in_func (sample_lambda5_n300,5)
+epe_in_qua_table <- cbind(epe_in_qua_lambda1.5_n60,epe_in_qua_lambda1.5_n300,epe_in_qua_lambda5_n60,epe_in_qua_lambda5_n300)
+row.names(epe_in_qua_table) <- ("epe_in")
+knitr::kable(epe_in_qua_table)
+```
+
+* e - epe
+
+```{r}
+
+
+epe_func  <- function(data, lambda){
+  epe <- c()
+      for (k in 1:100) {
+        new_values <- data.frame(sample_f(n = length(data[,1]), lambda =  lambda))
+        y_hat <- quadratic_reg_func(new_values)$fitted.values
+        epe <- c(epe, mean((y_hat - new_values[,2])^2))}
+  return(mean(epe))
+}
+epe_qua_lambda1.5_n60 <- epe_func (sample_lambda1.5_n60,1.5)
+eepe_qua_lambda1.5_n300 <- epe_func (sample_lambda1.5_n300,1.5)
+epe_qua_lambda5_n60 <- epe_func (sample_lambda5_n60,5)
+epe_qua_lambda5_n300 <- epe_func (sample_lambda5_n300,5)
+epe_qua_table <- cbind(epe_qua_lambda1.5_n60,eepe_qua_lambda1.5_n300,epe_qua_lambda5_n60,epe_qua_lambda5_n300)
+row.names(epe_qua_table) <- ("epe")
+knitr::kable(epe_qua_table)
+
+```
+
+```{r}
+all_table <- data.frame(rbind(quadratic_err_table,eop_qua_table,accuracy_qua_table,epe_in_qua_table,epe_qua_table))
+knitr::kable(all_table)
+```
+we can see that in the quadratic regression for higher lambda the err, eop, accuracy, epein and epe values are also higher.
+what we find surprising is that for lambda = 1.5 the accuracy is higher for lower n. 
+
+if we compare both regression we can say that the quadratic regression changes the values for bigger lambda much bigger, even more then double in some cases. 
+for both regressions the eop are almost consistent. but in kernel regression the err, epein and epe are higher. the accuracy may change depends on the 'h' value so we cant determine what is better accuracy wise.  
+
+
+
+
+
+# 2 
+
+A functional magnetic resonance imaging (FMRI) is a type of magnetic resonance imaging. The FMRI are showing how the brain reacts to different levels of oxigen in blood. We want to build models that anticipate voxel reacts to natural images.
+
+## 2.1 Prediction model
+
+For each voxel, fit a linear model of the features. Because there are more features than responses, you will
+need to use penalised regression.
+
+### 2.1.1 Model fitting
+
+```{r}
+load("fMRI_data_22.Rdata")
+```
+
+create the matrix before filling them
+
+```{r}
+set.seed(1)
+mspe<-matrix(nrow=3, ncol=2)
+colnames(mspe)<-c("ridge","lasso")
+rownames(mspe)<-c("y=1","y=2","y=3")
+
+rmspe<-matrix(nrow=3, ncol=2)
+colnames(rmspe)<-c("ridge","lasso")
+rownames(rmspe)<-c("y=1","y=2","y=3")
+
+se_mat<- matrix(nrow=3, ncol=2)
+colnames(se_mat)<-c("ridge","lasso")
+rownames(se_mat)<-c("y=1","y=2","y=3")
+
+cv_score<- matrix(nrow=3, ncol=2)
+colnames(cv_score)<-c("ridge","lasso")
+rownames(cv_score)<-c("y=1","y=2","y=3")
+
+l_mat<- matrix(nrow=3, ncol=2)
+colnames(l_mat)<-c("ridge","lasso")
+rownames(l_mat)<-c("y=1","y=2","y=3")
+```
+
+Fit ridge regression and lasso regression models on training data
+
+```{r}
+samp<-sample(1500, 300)
+val_x<-feature_train[samp,]
+
+val_y<-train_resp[samp,]
+
+x_train<- feature_train[-samp,]
+y_train<-train_resp[-samp,]
+
+pred_m<-as.data.frame(matrix(nrow=250,ncol=6))
+colnames(pred_m)<-c("0-1","0-2","0-3","1-1","1-2","1-3")
+for(alpha in c(0,1)){
+for(y in c(1,2,3)){
+  cv.out = cv.glmnet(x_train, y_train[,y], alpha = alpha)
+  
+  l_mat[y,alpha+1] = cv.out$lambda.min
+  pred<-predict(cv.out,val_x, gamma= "gamma.min")
+  cv_score[y,alpha+1 ] <- min(cv.out$cvm)
+  mspe[y,alpha+1]<-mean((val_y[,y]-pred)^2)
+  rmspe[y,alpha+1]<-sqrt(mean((val_y[,y]-pred)^2))
+
+  se_mat[y,alpha+1]<-sd((val_y[,y]-pred)^2)/sqrt(300)
+  pred_m[,paste(alpha,y,sep="-")]<-predict(cv.out,feature_test, gamma= "gamma.min")
+}
+  
+}
+```
+
+```{r}
+conf_mspe<- matrix(nrow=3, ncol=2)
+conf_rmspe<- matrix(nrow=3, ncol=2)
+
+for(i in c(1:3)){
+  for(j in c(1:2)){
+    CI_left_mspe<-round(mspe[i,j]-qt(p=0.95,df=300-2)*sqrt(se_mat[i,j]),3)
+    CI_right_mspe<-round(mspe[i,j]+qt(p=0.95,df=300-2)*sqrt(se_mat[i,j]),3)
+   
+    CI_left_rmspe<-round(rmspe[i,j]-qt(p=0.95,df=300-2)*sqrt(se_mat[i,j]),3)
+    CI_right_rmspe<-round(rmspe[i,j]+qt(p=0.95,df=300-2)*sqrt(se_mat[i,j]),3)
+    
+    conf_mspe[i,j]<- paste('[', as.character(as.numeric(CI_left_mspe)),' , ',  as.character(as.numeric(CI_right_mspe)),']')
+    
+    conf_rmspe[i,j]<- paste('[', as.character(as.numeric(CI_left_rmspe)),' , ',  as.character(as.numeric(CI_right_rmspe)),']')
+    
+  }
+}
+```
+
+confidence interval matrix MSPE
+
+```{r}
+knitr::kable(conf_mspe, "simple")
+```
+
+confidence interval matrix RMSPE
+
+```{r}
+knitr::kable(conf_rmspe, "simple")
+```
+
+## 2.1.2 Presenting results
+
+Present the results for the three responses in a table, detailing for each response (a) the chosen model (ridge
+or lasso), (b) the chosen lambda, (c) the average cross-validation score (for best model), (d) the estimated
+MSPE from validation with a confidence interval, and (e) the estimated RMSPE with a confidence interval.
+
+```{r}
+res_mat<- as.data.frame(matrix(nrow=7, ncol=3))
+colnames(res_mat)=c("Y=1","Y=2","Y=3")
+rownames(res_mat)=c("chosen model","lambda","acvs","estimated
+MSPE", "CI of MSPE", "RMSPE", "CI of RMSPE")
+```
+
+```{r}
+
+for(m in 1:3){
+  choosen=1
+  if (mspe[m,2]>mspe[m,1]){choosen=2}
+  res_mat[1,m]=colnames(mspe)[choosen]
+  res_mat[2,m]=l_mat[m,choosen]
+  res_mat[3,m]=cv_score[m,choosen]
+  res_mat[4,m]=mspe[m,choosen]
+  res_mat[5,m]=conf_mspe[m,choosen]
+  res_mat[6,m]=rmspe[m,choosen]
+  res_mat[7,m]=conf_rmspe[m,choosen]
+
+}
+rm(mspe,l_mat,cv_score,conf_mspe,conf_rmspe)
+res_mat["estimated\nMSPE",] <- as.numeric(res_mat["estimated\nMSPE",])
+```
+
+```{r}
+knitr::kable(res_mat)
+```
+
+- We see a difference in the prediction accuracy for the three responses. We can see that the MSPE for Y=1 is the lowest with lambda of 6.3, therefore this is the best prediction. Further more the CI of Y=1 is the is better than the other two predictions,as we can see the lower and upper bounds are lower than the others.Another parameter we can examine is the average cross-validation score, and the results are the same for this parameter too, Y=1 got the best score.
+By the results we got Y=1 with lambda 6.31 is the best prediction, but we need to consider that if we will sample the data again (differently) we might get different results.
+
+## 2.2 Interpreting the results
+
+## Linearity of response
+
+```{r}
+load("feature_pyramid.Rdata")
+load("train_stim_1_250.Rdata")
+load("train_stim_251_500.Rdata")
+load("train_stim_501_750.Rdata") 
+load("train_stim_751_1000.Rdata") 
+load("train_stim_1001_1250.Rdata")
+```
+
+```{r}
+assign("file-1", train_stim_1_250)
+assign("file-2", train_stim_251_500)
+assign("file-3", train_stim_501_750)
+assign("file-4", train_stim_751_1000)
+assign("file-5", train_stim_1001_1250)
+```
+fitting the chosen model
+
+```{r}
+lambda = res_mat$`Y=1`[2]
+reg = glmnet(x=feature_train,y=train_resp[,1],lambda = lambda,a = 0)
+beta <-as.matrix(predict(reg, type = "coefficients", s = lambda))
+```
+
+The most important feature
+
+```{r}
+knitr::kable(rownames(beta)[beta==max(beta)])
+```
+
+Select the most important feature by weight
+
+```{r}
+important <- as.data.frame(feature_train)
+important$resp <- train_resp[,1]
+important$pred <- predict(reg,newx=feature_train)[,1]
+important <- important[c("V2616","resp","pred")]
+```
+
+```{r}
+ggplot(important,aes(x=V2616,y=resp))+geom_point(shape=20)
+```
+
+```{r}
+ggplot(important,aes(x=pred,y=resp))+geom_point(shape=20)
+```
+
+In the first graph we don't see a clear linear connection between the most important value and the response values.
+In the second graph we can see a linear connection between the predicted values and the response values.
+From this information we can understand that the most important value by weight is not enough to predict the response values and we need more variables in order to find the linear connection. It comes from a high number of dimensions.
+
+## The example domain
+
+```{r}
+important$diff <- important$pred-important$resp
+important$nrow <- rownames(important)
+bottom5 <- top_n(important,5,wt=abs(diff))$nrow
+top5 <- top_n(important,-5,wt=abs(diff))$nrow
+```
+
+```{r}
+train_lst <- list(train_0=train_stim_1_250,train_1=train_stim_251_500,train_2=train_stim_501_750,train_3=train_stim_751_1000,train_4=train_stim_1001_1250)
+best <- matrix(nrow=5,ncol=16384)
+j=1
+for (i in as.numeric(top5)){
+  file_index <- i%/%250+1
+  if (file_index<6){
+    tmp <- as.data.frame(train_lst[file_index])
+    best[j,] <- as.numeric(tmp[rownames(tmp)==i,])
+    j=j+1
+  }
+}
+
+lowest <- matrix(nrow=5,ncol=16384)
+
+j=1
+for (i in as.numeric(bottom5)){
+  file_index <- i%/%250+1
+  if (file_index<6){
+    tmp <- as.data.frame(train_lst[file_index])
+    lowest[j,] <- as.numeric(tmp[rownames(tmp)==i,])
+    j=j+1
+  }
+}
+```
+
+the best by mse
+
+```{r, warning=FALSE}
+par(mar=c(1, 1, 1, 1),mfrow=c(2,5))
+for (i in 1:5){image(t(matrix(best[i,],nrow=128)[128:1,]),col=grey.colors(100),axes=F)}
+```
+
+the lowest by mse
+
+```{r, warning=FALSE}
+for (i in 1:5){image(t(matrix(lowest[i,],nrow=128)[128:1,]),col=grey.colors(100),axes=F)}
+```
+
+After examin the best and the worst predicted pictures we can understand that the pictures that the most elemnts where in the background were the worst predicted and the pictues that the front was the most detailed had the best prediction.
+
+
+** question 3
+
+
+```{r}
+df <- read_csv("Israel_covid19_newdetections.csv")
+```
+
+```{r}
+
+names(df) <- c('date', 'cases_this_day')
+df <- df[-1,]
+vec <- c()
+for(i in 1:nrow(df)){
+  date_1<-str_split(df$date[i], pattern = "-")[[1]]
+  date_1<- as.vector(date_1)%>% rev() 
+  new_vec <- date_1 %>% glue_collapse( sep = "-") %>% as.Date() 
+  vec <- append(vec,new_vec)
+  vec<- as.Date(vec)
+  }
+df$date <- vec
+```
+
+```{r}
+df$reg_1 <- ksmooth(x=c(1:831), y= df$cases_this_day,kernel = "normal",bandwidth = 1)$y
+df$reg_2 <- ksmooth(x=c(1:831), y= df$cases_this_day,kernel = "normal",bandwidth = 10)$y
+df$reg_3 <- ksmooth(x=c(1:831), y= df$cases_this_day,kernel = "normal",bandwidth = 50)$y
+head(df)
+```
+
+```{r}
+df_vec <- c(as.Date(rep(df$date, each = 3)))
+reg_data <- c(rbind(df$reg_1,df$reg_2,df$reg_3))
+order_vec<-c(1,2,3)
+order_df = data.frame(date =df_vec)
+order_df$order_num <- order_vec
+order_df$reg_val <- reg_data
+head(order_df)
+```
+
+```{r}
+order_df$new_cases <- rep(df$cases_this_day, each = 3)
+order_df[order_df$order_num != 1,"new_cases"] <- NA
+order_df[order_df$order_num == 1, "color"]<- "blue"
+order_df[order_df$order_num == 2, "color"]<- "red"
+order_df[order_df$order_num == 3, "color"]<- "yellow"
+head(order_df)
+```
+
+```{r}
+order_df$new_cases<-as.numeric(as.character(order_df$new_cases))
+ggplot(data = order_df, aes(x = date, y = reg_val, group = order_num, color = color)) + 
+  labs(col = "Bandwidth (h)")+
+  geom_point(aes(y= new_cases), size = 1, color = "black")+
+  geom_line(size = 1, alpha = 0.5)+
+  ggtitle("new Covid cases per day")+ylab("new Cases") +
+  scale_color_manual(values=c("yellow","red","blue"),
+                     labels=c("1","10","50") )+ theme_dark()
+
+
+```
+
+we choose for this question to use the kernel regression that we have seen before in this lab. we can use different 'h'(bandwith) to see the graphs in a smoother way so it wiil be easier to see the ups and downs for the covid data. 
+
+as we have said before, we have choose 3 different random 'h' values. the higher the value the smoother is the graph and easy to read, but on the other hand the lower the value the more is it close to the real data. 
+from the graph we can see that there 4 times when the graph rises and we can see that it consistent.
+at the end of the 3rd quarter of 2020 and 2021. this time of the year in israel it is after the jewish holiday where people gather alot together then it makes sense that the will be a peak of corona.
+and at the beginning of 2021 and 2022. we can assume that it happens after new years eve where lots of people celebrate new years eve at parties. 
+
+```{r}
+df$rate1 <- df$reg_1 - lag(df$reg_1)
+df$rate2 <- df$reg_2 - lag(df$reg_2)
+df$rate3 <- df$reg_3 - lag(df$reg_3)
+df$orig_rate <- as.numeric(df$cases_this_day) - lag(as.numeric(df$cases_this_day))
+
+df[1,c("rate1","rate2","rate3","orig_rate")]<- 0
+
+head(df)
+```
+
+```{r}
+vec_df <- rbind(df$rate1,df$rate2,df$rate3)
+order_df$rate_type <- c(vec_df)
+
+order_df$orig_rate <- rep(df$orig_rate, each = 3)
+order_df[order_df$order_num != 1,"orig_rate"] <- NA
+
+head(order_df)
+```
+
+```{r}
+ggplot(data = order_df, aes(x = date, y= rate_type, group = order_num, color = color))+
+  labs(col = "Bandwidth (h)")+
+  geom_line(alpha = 0.5, lwd = 1.4)+
+  geom_point(aes(y= orig_rate), size = 0.5, color = "navy")+
+  ggtitle("daily change in rate of new detections per day")+
+  scale_color_manual(values=c("yellow","red","blue"),
+                     labels=c("1","10","50") )+ ylab('number of changes')+ theme_dark() 
+```
+this graphs shows us the changes per day of new detections of covid. we can see from this graph at the same eras that we so from the last graph the eras that have lots of covid examinations. again as we said the lower the 'h' value is the bigger the swing is and it easier to see the peaks. 
